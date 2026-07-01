@@ -1,0 +1,22 @@
+# deps
+node_modules/
+
+# secrets — NEVER commit (live session cookies)
+scripts/test-auth/auth.json
+
+# generated reports / artifacts
+playwright-report/
+monocart-report/
+test-results/
+blob-report/
+.playwright/
+
+# stray diagnostic scripts the recon step may create
+scripts/regression/__diag.ts
+scripts/regression/results-*.json
+scripts/regression/failure-*.png
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
