@@ -21,10 +21,13 @@ on the live page is what actually proves the anchors.
 - Optional: intent / specific cases the user wants ("verify duplicate shows an error").
 
 ## Prerequisites (tell the user if missing)
-- On a branch that has `scripts/regression/` (the suite) + `playwright.config.ts`.
-- One-time per machine: `pnpm install`, then `npx playwright install chromium`.
-- A QA **SessionId** (DevTools → Application → Cookies → `SessionId`) for recon + verify.
-- Working dir for all commands: `frontend/recipe-site-frontend`.
+- The repo has `scripts/regression/` (the suite) + `playwright.config.ts`. Run all commands from
+  the repo root.
+- One-time per machine: `npm install`, then `npx playwright install chromium`.
+- Auth for recon + verify: `login.cmd` (interactive) or a **SessionId** via `SESSION_ID`.
+- **Which app**: the target defaults to Cookbook QA. If the page URL's host is different, set
+  `APP_URL=https://that-host` (a full origin) — derive it from the full page URL the user gives,
+  or ask once. The cookie domain is derived from `APP_URL`; no code edit needed.
 
 ## Conventions (match the existing suite — read 1-2 existing pages as templates)
 Look at `scripts/regression/pages/BrandManagementPage.ts` (+ `LocationMappingPage.ts`)

@@ -34,15 +34,24 @@ export interface AuthOptions {
     sessionId?: string;
 }
 
-const DOMAIN_MAP: Record<AuthTarget, string> = {
-    qa: "cookbook.foodtruck-qa.com",
-    local: "localhost",
-};
+// Default app (Cookbook QA). OTHER teams point this at their own app WITHOUT editing code:
+//   set env APP_URL=https://your-app.example.com   (a full origin)
+// The SessionId cookie's domain is derived from this URL, so no per-app hardcoding.
+const DEFAULT_QA_URL = "https://cookbook.foodtruck-qa.com";
 
 export const BASE_URL: Record<AuthTarget, string> = {
-    qa: "https://cookbook.foodtruck-qa.com",
-    local: "https://localhost:6443",
+    qa: process.env.APP_URL || DEFAULT_QA_URL,
+    local: process.env.LOCAL_PORT ? `https://localhost:${process.env.LOCAL_PORT}` : "https://localhost:6443",
 };
+
+/** Cookie domain derived from the resolved base URL — no hardcoded per-app domain. */
+function cookieDomain(target: AuthTarget): string {
+    try {
+        return new URL(BASE_URL[target]).hostname;
+    } catch {
+        return "localhost";
+    }
+}
 
 /**
  * Resolve the base URL, honoring overrides (useful when Vite picks a non-default
@@ -75,7 +84,7 @@ export async function createAuthenticatedContext(
             {
                 name: "SessionId",
                 value: sessionId,
-                domain: DOMAIN_MAP[target],
+                domain: cookieDomain(target),
                 path: "/",
                 secure: true,
                 sameSite: "None",

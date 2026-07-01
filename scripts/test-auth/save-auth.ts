@@ -18,7 +18,7 @@ import {chromium} from "@playwright/test";
 import * as path from "path";
 
 export const AUTH_FILE = path.resolve(__dirname, "auth.json");
-const QA_URL = "https://cookbook.foodtruck-qa.com";
+const QA_URL = process.env.APP_URL || "https://cookbook.foodtruck-qa.com"; // other apps: set APP_URL
 const LOCAL_URL = "https://localhost:6443";
 
 const saveAuth = async () => {

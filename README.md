@@ -59,6 +59,7 @@ Env vars (read by `playwright.config.ts`):
 | Var | Values | Meaning |
 |-----|--------|---------|
 | `SESSION_ID` | cookie value | auth (falls back to a saved `scripts/test-auth/auth.json` if set up) |
+| `APP_URL` | full origin, e.g. `https://your-app.example.com` | which app to test — **default is Cookbook QA**; other teams set this (no code edit), cookie domain is auto-derived |
 | `TARGET` | `qa` (default) / `local` | which environment to hit |
 | `LOCAL_PORT` | e.g. `6444` | local dev on a non-default Vite port |
 | `SLOWMO` | e.g. `800` | ms between actions (watch a `--headed` run) |
@@ -139,5 +140,9 @@ e2e-autopilot/
   parallel workers contend and flake.
 - **App source is NOT in this repo by design** — that's why it uses the `PAGES.md` catalog + live
   recon. Regenerate `PAGES.md` when pages change (re-read the app's components).
+- **Reusing for another app / team**: no code edit — set `APP_URL=https://your-app.example.com`
+  (a full origin); the cookie domain is derived from it. The `regression-add-page` skill also
+  reads the origin from the full page URL you give it, so it can just ask once and set `APP_URL`.
+  You'd start a fresh `PAGES.md` for your app (or skip it and rely on recon).
 - **Known-blocked**: OG Sync Log (`/sync-job-log/og`) needs an account with that permission.
 - **Never commit `scripts/test-auth/auth.json`** (session cookies) — it's gitignored.
