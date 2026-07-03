@@ -3,6 +3,11 @@ node_modules/
 
 # secrets — NEVER commit (live session cookies)
 scripts/test-auth/auth.json
+.tmp-storage.json
+
+# build-flow output — per-user data-setup scripts, bootstrapped by the build-flow skill
+# (incl. flows/FLOWS.md, the recordings and throwaway runners). Not committed.
+flows/
 
 # generated reports / artifacts
 playwright-report/
