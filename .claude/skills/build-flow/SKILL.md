@@ -150,6 +150,22 @@ is its catalog.
   import {createIngredientItem} from "../../flows/createIngredientItem";
   const {itemId} = await createIngredientItem(page, {subType: "Buyouts"});
   ```
+- **Always end the run with a final report to the user** containing three parts:
+  1. **生成结果 / Generated files** — the flow file, any Page Object added/reused, `FLOWS.md`, and the
+     verify result (the real id it created on QA).
+  2. **运行命令 / Run command** — the exact copy-paste command to run this flow (see runner below).
+  3. **FLOWS.md 摘要 / Catalog summary** — the catalog row + detail section just registered.
+- **Provide a reusable CLI runner** so the user can run any flow by name without editing code. If
+  `flows/run.ts` doesn't exist, create it (a generic runner: launch chromium, inject `SESSION_ID`
+  cookie + baseURL, look the flow up by name, call it, print the result); when a new flow is added,
+  register it in that runner's `FLOWS` map. The run command in the report points at it:
+  ```powershell
+  $env:SESSION_ID="<id>"; npx ts-node -P tsconfig.scripts.json flows/run.ts <flowName>
+  # optional: '{"param":"value"}' as a 2nd arg; $env:HEADED="1"; $env:SLOWMO="500" to watch
+  ```
+- **Then ask the user whether to run the generated flow now** (Step 4 already verified it once, so
+  this is an optional extra run for their real seeding). Use a quick yes/no question; if yes, run it
+  via `flows/run.ts` with the same `SESSION_ID` and report the id it created.
 
 ## Composing flows into a longer flow
 When the user asks for a *combination* of existing flows (e.g. "automate create → search → delete
@@ -189,6 +205,9 @@ build-flow: <name>
                 (+ pages/<...>Page.ts reused/added)
   - verified:   ran once → created/acted <id> on qa
   - registered: flows/FLOWS.md (catalog row + detail section)
+  - runner:     flows/run.ts (generic CLI runner; new flow registered in its FLOWS map)
   - usage:      seed CLI + import in specs; composable via returns→requires
+  - report:     final reply = generated files + run command + FLOWS.md summary
+  - prompt:     ask the user whether to run the flow now
 ```
 Do NOT commit unless the user asks.
