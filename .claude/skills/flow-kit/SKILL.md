@@ -1,109 +1,74 @@
 ---
 name: flow-kit
 description: >-
-  Use when a repo has NO Playwright e2e scaffolding yet and you need reusable data-setup /
-  action flows — the user says /flow-kit, "从零搭一个造数脚本", "在这个空项目里做 e2e 流程脚本",
-  "build a self-contained data-setup flow", "record a create/search/delete flow" and there is no
-  playwright.config / auth helper / flows dir to build on. Bootstraps the whole toolkit into any
-  repo, then records → refactors → verifies → registers → composes flows. (If the repo already has
-  the scripts/regression suite, use build-flow instead.)
+  Use when a repo needs to be SET UP / onboarded for the e2e flow skills before any flow can be
+  built — Playwright/deps not installed, no flows/ scaffolding, first-time use, or a run failed on
+  a missing prerequisite. Triggers: /flow-kit, "初始化 e2e 环境", "环境没装好/装依赖", "从零准备造数脚本环境",
+  "set up before build-flow", "bootstrap playwright flows". Checks the environment, installs deps,
+  scaffolds flows/ + auth + runner, verifies prerequisites, then hands off to build-flow. It does
+  NOT record or author flows — that is build-flow's job.
 ---
 
-# flow-kit — self-contained Playwright flow toolkit (bootstrap + record + compose)
+# flow-kit — prepare a repo for the e2e flow skills (env · deps · init)
 
-Like `build-flow`, but assumes **nothing**: it works in a bare repo by bootstrapping its own
-scaffolding (auth helper, runner, tsconfig, `flows/` catalog) — no `scripts/`, no
-`playwright.config.ts`, no fixtures required. Everything it generates lives under `flows/` and is
-regenerable, so a first-time user just runs the skill; they don't clone or scaffold anything by hand.
+flow-kit is the **setup / onboarding** step. It gets a repo ready — dependencies, browser, auth,
+and the `flows/` scaffolding — then **hands off**. It deliberately does NOT record, refactor, or
+compose flows; that is build-flow's job, and duplicating it here would only drift.
 
-**Produces** parameterized flows with a typed `@flow` contract (`action/target/returns/requires`)
-that compose into longer flows (e.g. `create→search→delete`). **Method:** bootstrap → record the
-real flow (ground truth) → refactor into a structured flow + Page Object → verify by running once →
-register in `flows/FLOWS.md`.
+**REQUIRED NEXT SKILL:** once flow-kit reports "ready", use `build-flow` to record and build a flow
+(and `regression-add-page` for per-page regression tests). Do not re-explain those workflows here.
 
-`<skill-dir>` below = this skill's base directory; its `templates/` holds every file to copy.
+`<skill-dir>` = this skill's base directory; `templates/` holds the files to copy.
 
-## Naming
-`create` flows are entity-specific (`createIngredientItem`, `createMenuItem`); `search`/`delete`/
-`update` flows are generic (`searchItem`, `deleteItem`). Never a vague `createItem` when a type matters.
+## Step 1 — Environment & dependencies
+- **Node ≥ 20** (`node -v`).
+- Dev deps present in the repo: `@playwright/test`, `ts-node`, `typescript`, `@types/node`.
+  If any are missing, install them (`npm i -D @playwright/test ts-node typescript @types/node`,
+  or the repo's package manager — pnpm/yarn).
+- **Chromium** downloaded: `npx playwright install chromium` (Playwright drives its own browser;
+  no system Chrome needed).
 
-## Step 1 — Bootstrap the toolkit (idempotent; never overwrite existing files)
-1. **Deps**: ensure `@playwright/test`, `ts-node`, `typescript`, `@types/node` are installed
-   (`npm i -D` them if missing) and `npx playwright install chromium` has run.
-2. **Scaffold** — for each, copy from `<skill-dir>/templates/` only if the destination is absent:
-   - `flows/_auth.ts`         ← `templates/_auth.ts`      (APP_URL→baseURL, SESSION_ID cookie inject)
-   - `flows/_run.ts`          ← `templates/_run.ts`       (generic runner)
-   - `tsconfig.flows.json`    ← `templates/tsconfig.flows.json`  (repo root; `include` is `flows/**`)
-   - `flows/FLOWS.md`         ← `templates/FLOWS.template.md`
-   - `mkdir -p flows/pages flows/.recorded`
-3. **Env**: confirm `APP_URL` (full origin) and `SESSION_ID` are set — the recorder and runner need
-   them. The session cookie name defaults to `SessionId`; set `SESSION_COOKIE` if the app differs.
-Then read `flows/FLOWS.md` and reuse/compose per the catalog (see Composing below).
+## Step 2 — Auth prerequisites (don't create, just verify + guide)
+The flow skills hit a deployed app and need a logged-in session:
+- `APP_URL` — full origin of the target app (e.g. `https://app.example.com`). Required unless the
+  repo already defaults it. The cookie domain is derived from it.
+- `SESSION_ID` — the session cookie value (DevTools → Application → Cookies). Set it in the env.
+  Cookie name defaults to `SessionId`; set `SESSION_COOKIE` if the app uses another.
+If neither `SESSION_ID` nor a saved auth file exists, tell the user how to get a `SESSION_ID` (or run
+their `login.cmd` if the repo has one). It's a live credential — never commit or echo it.
 
-## Step 2 — Record (human drives; agent launches + waits)
-Build a temp storageState from `SESSION_ID` so codegen opens already logged in, then record:
+## Step 3 — Initialize the flows/ scaffolding (idempotent; never overwrite existing files)
+For each, copy from `<skill-dir>/templates/` **only if the destination is absent**:
+- `flows/_auth.ts`      ← `templates/_auth.ts`      (APP_URL→baseURL + SESSION_ID cookie injection)
+- `flows/_run.ts`       ← `templates/_run.ts`       (generic runner: `flows/_run.ts <name>`)
+- `tsconfig.flows.json` ← `templates/tsconfig.flows.json`   (repo root; `include` is `flows/**`)
+- `flows/FLOWS.md`      ← `templates/FLOWS.template.md`     (the flow catalog)
+- `mkdir -p flows/pages flows/.recorded`
+
+Also suggest gitignoring generated output: `flows/` is per-user (recordings, throwaway runners, and
+the flows themselves) — add `flows/` and `.tmp-storage.json` to `.gitignore` if not already ignored.
+
+## Step 4 — Verify readiness (smoke check)
+Confirm the scaffold type-checks before handing off:
 ```bash
-node -e "const u=new URL(process.env.APP_URL);require('fs').writeFileSync('flows/.tmp-storage.json',JSON.stringify({cookies:[{name:process.env.SESSION_COOKIE||'SessionId',value:process.env.SESSION_ID,domain:u.hostname,path:'/',secure:true,sameSite:'None',expires:-1}],origins:[]}))"
-npx playwright codegen --load-storage=flows/.tmp-storage.json --output flows/.recorded/<flow>.spec.ts "$APP_URL/<start-path>"
+npx tsc --noEmit -p tsconfig.flows.json
 ```
-Tell the user: *a logged-in browser opened — do the flow once, use the recorder's **Assert** buttons
-to check it worked, then close the window.* codegen exits when the browser closes.
+Green = the toolkit is wired correctly. (A full end-to-end check happens when build-flow runs its
+first flow with real `APP_URL` + `SESSION_ID`.)
 
-## Step 3 — Refactor into a flow + Page Object
-Turn the linear recording (`flows/.recorded/<flow>.spec.ts`) into structure — see
-`templates/flow.example.ts` for the exact shape:
-1. `flows/<name>.ts` exports `<name>(page, input)` topped by the standardized **`@flow` header**
-   (`@flow @action @target @summary @params @returns @requires @sideEffects @pages @recorded`).
-   The **`@returns`/`@requires` pair is the composition contract**.
-2. Extract selectors into `flows/pages/<X>Page.ts` (reuse an existing one if the page is covered).
-3. Conventions: relative `page.goto` (baseURL is set), `.ant-select-dropdown:visible` etc. for
-   modals/dropdowns, locator priority `getByTestId > getByRole/getByLabel > text`, `{timeout: 20000}`
-   for code-split loads + backend writes, unique `e2e-*` data, read ids from the URL/DOM (not network).
-4. `npx tsc --noEmit -p tsconfig.flows.json`; fix type errors.
-
-## Step 4 — Verify (run once)
-```bash
-npx ts-node -P tsconfig.flows.json flows/_run.ts <name>            # add --headed [+ SLOWMO] to watch
+## Step 5 — Hand off
+Report what was installed/created and what was already present, then point the user on:
 ```
-Success = it prints `RESULT: {...}` with a real id. A **locator timeout** = a stale anchor →
-re-recon that step, fix the locator, re-run. Then clean up `flows/.tmp-storage.json`,
-`flows/.recorded/<flow>.spec.ts`, and any throwaway runner. Note any test data left on the app.
-
-## Step 5 — Register in `flows/FLOWS.md`
-Add the flow's **catalog row** + **detail section** (values from the `@flow` header) so it's
-discoverable and composable. The header in the `.ts` is the source of truth; FLOWS.md is its index.
-
-## Composing flows into a longer flow
-When the user asks for a *combination* of existing flows ("automate create→search→delete an item"),
-you **don't record** — you compose:
-1. Read `flows/FLOWS.md`; order flows by matching `Returns` → `Requires` (a `create` produces
-   `itemId`/`name`; a `search`/`delete` consumes them).
-2. Write `flows/<compositeName>.ts` importing them in order, threading the returned ids. Give it a
-   `@flow` header with `@action composite`, then register it too:
-   ```ts
-   // @flow createSearchDeleteItem  @action composite  @target Item  @requires —  @returns { itemId }
-   export async function createSearchDeleteItem(page, input = {}) {
-       const {itemId, name} = await createIngredientItem(page, input); // produces id + name
-       await searchItem(page, {query: name});                          // consumes name
-       await deleteItem(page, {itemId});                               // consumes id
-       return {itemId};
-   }
-   ```
-3. Verify it once (Step 4). If a needed step doesn't exist yet, record just that flow first, then compose.
-
-## Honest caveats
-- The **step sequence/intent must come from a human** (a recording, or an ordered list of existing
-  flows for a composite); the agent can't infer a *new* business flow from a bare page.
-- Flows **mutate real data** on the target app — prefer unique `e2e-*` names + a teardown flow.
-- Multi-page flows are fragile; the record+verify loop is what keeps them honest — don't skip the run.
-
-## Output contract
+flow-kit: ready
+  - env:     node <v>, @playwright/test <v>, chromium installed
+  - auth:    APP_URL <set/missing>, SESSION_ID <set/missing>
+  - created: <files created>   (already present: <files skipped>)
+  - next:    use build-flow to record & build a flow  (or regression-add-page for page tests)
 ```
-flow-kit: <name>
-  - bootstrap:  tsconfig.flows.json + flows/{_auth.ts,_run.ts,FLOWS.md,pages/} (created if missing)
-  - flow:       flows/<name>.ts (@flow: action/target, params, returns, requires) + flows/pages/<X>Page.ts
-  - verified:   ran once → RESULT {id} against APP_URL
-  - registered: flows/FLOWS.md
-  - usage:      flows/_run.ts <name>; composable via returns→requires
-```
-Do NOT commit unless the user asks. `flows/` is per-user generated — suggest gitignoring it.
+
+## Common mistakes
+- **Duplicating build-flow here.** If you find yourself writing record/refactor/compose steps, stop —
+  hand off to build-flow instead.
+- **Overwriting a user's existing scaffolding.** Every copy in Step 3 is conditional on absence.
+- **Committing secrets or generated flows.** `SESSION_ID` is a live credential; `flows/` is per-user.
+Do NOT commit unless the user asks.
