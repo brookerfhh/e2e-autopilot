@@ -28,14 +28,15 @@ compose flows; that is build-flow's job, and duplicating it here would only drif
 - **Chromium** downloaded: `npx playwright install chromium` (Playwright drives its own browser;
   no system Chrome needed).
 
-## Step 2 — Auth prerequisites (don't create, just verify + guide)
-The flow skills hit a deployed app and need a logged-in session:
-- `APP_URL` — full origin of the target app (e.g. `https://app.example.com`). Required unless the
-  repo already defaults it. The cookie domain is derived from it.
-- `SESSION_ID` — the session cookie value (DevTools → Application → Cookies). Set it in the env.
-  Cookie name defaults to `SessionId`; set `SESSION_COOKIE` if the app uses another.
-If neither `SESSION_ID` nor a saved auth file exists, tell the user how to get a `SESSION_ID` (or run
-their `login.cmd` if the repo has one). It's a live credential — never commit or echo it.
+## Step 2 — Target app config (don't verify auth here)
+The flow skills hit a deployed app:
+- `APP_URL` — full origin of the target app (e.g. `https://app.example.com`). Set it (or confirm the
+  repo defaults it); the cookie domain is derived from it. Set `SESSION_COOKIE` only if the app's
+  session cookie isn't named `SessionId`.
+
+Do **not** check or require `SESSION_ID` here. Auth is a **live, short-lived credential supplied at
+run time** — the user passes it when build-flow records/runs a flow, not during setup. Just mention
+it'll be needed then (DevTools → Application → Cookies → `SessionId`); never store, commit, or echo it.
 
 ## Step 3 — Initialize the flows/ scaffolding (idempotent; never overwrite existing files)
 For each, copy from `<skill-dir>/templates/` **only if the destination is absent**:
@@ -61,7 +62,7 @@ Report what was installed/created and what was already present, then point the u
 ```
 flow-kit: ready
   - env:     node <v>, @playwright/test <v>, chromium installed
-  - auth:    APP_URL <set/missing>, SESSION_ID <set/missing>
+  - config:  APP_URL <set/missing>   (SESSION_ID supplied at run time, not here)
   - created: <files created>   (already present: <files skipped>)
   - next:    use build-flow to record & build a flow  (or regression-add-page for page tests)
 ```
