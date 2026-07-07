@@ -91,13 +91,38 @@ Full command list + the 59-case inventory: [`scripts/regression/README.md`](scri
 
 ---
 
-## Generate tests for a NEW page (with an AI agent)
+## AI skills (`.claude/skills`)
 
-This is the "autopilot" part. In this repo, using **Claude Code**:
+This is the "autopilot" part — three **Claude Code** skills that pair to set up, seed, and test.
+They form a pipeline: **flow-kit** prepares the ground; **build-flow** and **regression-add-page**
+do the work.
 
-1. `$env:SESSION_ID="<id>"`
-2. `/regression-add-page https://cookbook.foodtruck-qa.com/<path>`
+| Skill | Use it when… | What it produces |
+|-------|--------------|------------------|
+| **flow-kit** | a repo isn't set up yet — no Playwright/deps, no `flows/`, first-time use | installs deps + chromium, scaffolds `flows/` (auth helper, runner, tsconfig, `FLOWS.md`), verifies it compiles, then hands off. Doesn't author flows. |
+| **build-flow** | you need to **seed data / drive a business flow** — create an item, search, delete; or a fixture for regression | records the flow once → refactors into a parameterized `flows/<name>.ts` (returns the new id) → verifies → registers it in `flows/FLOWS.md`. Existing flows **compose** into longer ones (create→search→delete) via `returns→requires`. |
+| **regression-add-page** | you need **behavioral e2e regression tests** for one stable admin page | recons the live page → reviewable `tests/<page>.md` → Page Object + `<page>.spec.ts` → runs against QA and fixes anchors until green. Leaves QA clean. |
 
+**Auth is supplied at run time** (not during setup): pass `SESSION_ID` when a skill records or runs
+against the app. It's a live, short-lived credential — never commit or share it.
+
+### build-flow (seed data / flows)
+
+```powershell
+$env:SESSION_ID="<id>"                       # live session cookie, passed at run time
+/build-flow create-item                       # or: "做一个 create item 的造数脚本"
+```
+Records once (a logged-in browser opens — do the flow, then close it), refactors into
+`flows/createIngredientItem.ts`, verifies, and registers it in `flows/FLOWS.md`. Ask it to
+**compose** (`"把 create→search→delete 组合起来"`) and it chains existing flows without re-recording.
+`flows/` is per-user generated (gitignored). See `.claude/skills/build-flow/SKILL.md`.
+
+### regression-add-page (page tests)
+
+```powershell
+$env:SESSION_ID="<id>"
+/regression-add-page https://cookbook.foodtruck-qa.com/<path>
+```
 The agent then:
 1. Looks up the page in the knowledge base `.claude/skills/regression-add-page/PAGES.md` (what it
    has, what to test, hidden rules) — so **QA needs no source code**.
@@ -109,6 +134,15 @@ The agent then:
 Not in the catalog? The agent recons the live page and asks you for the URL/intent. See
 `.claude/skills/regression-add-page/SKILL.md` for the full playbook.
 
+### flow-kit (first-time setup)
+
+```
+/flow-kit                                     # or: "初始化 e2e 环境" / "装依赖准备造数脚本"
+```
+Mainly for a **fresh/other repo** without this suite's scaffolding: it installs deps, sets up
+`APP_URL`, scaffolds `flows/`, and points you to build-flow. This repo already ships the full
+`scripts/` scaffold, so here flow-kit is only needed to bootstrap `flows/` or a clean checkout.
+
 ---
 
 ## Layout
@@ -117,9 +151,13 @@ Not in the catalog? The agent recons the live page and asks you for the URL/inte
 e2e-autopilot/
 ├── package.json / tsconfig*.json / playwright.config.ts   # project + runner config
 ├── login.cmd           # double-click to log into QA (saves the session for runs)
-├── .claude/skills/regression-add-page/
-│   ├── SKILL.md        # the generation playbook (recon → cases → script → verify)
-│   └── PAGES.md        # per-page knowledge base (elements, capabilities, hidden rules)
+├── .claude/skills/
+│   ├── flow-kit/       # first-time setup: env/deps/init, then hands off (SKILL.md + templates/)
+│   ├── build-flow/     # record → build → compose data-setup flows (SKILL.md + FLOWS template)
+│   └── regression-add-page/
+│       ├── SKILL.md    # the generation playbook (recon → cases → script → verify)
+│       └── PAGES.md    # per-page knowledge base (elements, capabilities, hidden rules)
+├── flows/              # build-flow output: per-user data-setup scripts + FLOWS.md (gitignored)
 └── scripts/
     ├── test-auth/      # SessionId / storageState auth helpers
     └── regression/
