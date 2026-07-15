@@ -1,61 +1,80 @@
 /**
  * @flow         buildFullMenuItem
  * @action       composite                       // create | search | delete | update | verify | composite
- * @target       Item · fully-configured Menu item (DRAFT) with a published HDR component
- * @summary      The full example: create a draft menu + draft HDR consumable, add the consumable as a
- *               component, configure the menu (concept + service + nutrition + packaged SKU), and
- *               publish the HDR consumable. The menu item itself is left as a DRAFT (not published).
- * @params       concept?="2PRs Fred's"  usage?="1"  verify?=false
- * @returns      { menu, component, added, conceptSet, serviceReviewed, nutritionReviewed,
- *                 packageSku, componentPublished }
- * @requires     —                               // entry point — composes most of the flow library
- * @sideEffects  persistent · creates 2 items, links & configures them, PUBLISHES the HDR component
- *               (the menu stays a draft — publish it separately via publishMenuItem if needed)
+ * @target       Item · fully-configured DRAFT Menu item built around an EXISTING published component
+ * @summary      Create a draft menu item, add an already-published item as its component, then
+ *               configure the menu (concept + service + nutrition + packaged SKU). The menu is left
+ *               as a DRAFT (not published). Drive it from natural language, e.g. "create a menu item,
+ *               add <X> as its component" → run with { component: "<X>" }.
+ * @params       component (required — an existing published item's NUMBER or NAME to add as the BOM
+ *               component)  concept?="2PRs Fred's"  usage?="1"  verify?=false
+ * @returns      { menu, component, added, conceptSet, serviceReviewed, nutritionReviewed, packageSku }
+ * @requires     component (a pre-existing, ideally published, item)
+ * @sideEffects  persistent · creates + configures a DRAFT menu on QA; does NOT create/publish the
+ *               component (it must already exist) and does NOT publish the menu.
  * @pages        ItemPage
- * @composes     assembleFullMenuItem → setPackageSku → publishHdrConsumable
- * @note         Each run creates fresh drafts so it's repeatable. Publishing the menu is intentionally
- *               NOT part of this flow (use publishMenuItem for that).
+ * @composes     createDraftMenuItem → addComponentToItem → setItemConcept → setServiceSettingReviewed
+ *               → setNutritionReviewed → setPackageSku
+ * @note         The component is matched in the "Add component" dialog which searches by Name OR Item
+ *               Number, so `component` may be either. To also create the component, use
+ *               createDraftHdrConsumable / assembleFullMenuItem instead; to publish, use publishMenuItem.
  */
 import {Page} from "@playwright/test";
-import {assembleFullMenuItem, AssembleFullInput} from "./assembleFullMenuItem";
+import {createDraftMenuItem} from "./createDraftMenuItem";
+import {addComponentToItem} from "./addComponentToItem";
+import {setItemConcept} from "./setItemConcept";
+import {setServiceSettingReviewed} from "./setServiceSettingReviewed";
+import {setNutritionReviewed} from "./setNutritionReviewed";
 import {setPackageSku} from "./setPackageSku";
-import {publishHdrConsumable} from "./publishHdrConsumable";
 
-export type BuildFullMenuItemInput = AssembleFullInput;
+export interface BuildFullMenuItemInput {
+    component: string;
+    concept?: string;
+    usage?: string;
+    verify?: boolean;
+}
 
 export async function buildFullMenuItem(
     page: Page,
-    input: BuildFullMenuItemInput = {},
+    input: BuildFullMenuItemInput,
 ): Promise<{
     menu: {itemId: string; name: string; url: string};
-    component: {itemId: string; name: string; url: string};
+    component: string;
     added: boolean;
     conceptSet: boolean;
     serviceReviewed: boolean;
     nutritionReviewed: boolean;
     packageSku: {serviceLocation: string; smallwareTool: string; panSize: string};
-    componentPublished: boolean;
 }> {
-    // 1-6. create + assemble + configure (concept / service / nutrition)
-    const full = await assembleFullMenuItem(page, input);
+    if (!input || !input.component) {
+        throw new Error('buildFullMenuItem needs `component` — an existing published item number or name, e.g. --input \'{"component":"4000470"}\'');
+    }
+    const concept = input.concept ?? "2PRs Fred's";
+    const verify = input.verify;
 
-    // 7. packaged-SKU required selects on the menu item
-    const packageSku = await setPackageSku(page, {url: full.menu.url});
-    console.log("[build] package SKU set");
+    // 1. create the draft menu item
+    const menu = await createDraftMenuItem(page, {});
+    console.log(`[build] menu ${menu.name} -> ${menu.url}`);
 
-    // 8. publish the HDR consumable component (fills its required Out of Stock Name first)
-    const comp = await publishHdrConsumable(page, {url: full.component.url});
-    console.log(`[build] component published: ${comp.published}`);
+    // 2. add the EXISTING (published) item as a component
+    const {added} = await addComponentToItem(page, {url: menu.url, componentName: input.component, usage: input.usage});
+    console.log(`[build] component "${input.component}" added: ${added}`);
 
-    // NOTE: the menu item is intentionally left as a DRAFT (not published).
+    // 3. configure the menu
+    const c = await setItemConcept(page, {url: menu.url, concept, verify});
+    const s = await setServiceSettingReviewed(page, {url: menu.url, reviewed: true, verify});
+    const n = await setNutritionReviewed(page, {url: menu.url, reviewed: true, verify});
+    const packageSku = await setPackageSku(page, {url: menu.url});
+    console.log(`[build] configured (concept=${c.set}, service=${s.reviewed}, nutrition=${n.reviewed}, packageSku set)`);
+
+    // menu item intentionally left as a DRAFT (publish separately via publishMenuItem)
     return {
-        menu: full.menu,
-        component: full.component,
-        added: full.added,
-        conceptSet: full.conceptSet,
-        serviceReviewed: full.serviceReviewed,
-        nutritionReviewed: full.nutritionReviewed,
+        menu,
+        component: input.component,
+        added,
+        conceptSet: c.set,
+        serviceReviewed: s.reviewed,
+        nutritionReviewed: n.reviewed,
         packageSku,
-        componentPublished: comp.published,
     };
 }

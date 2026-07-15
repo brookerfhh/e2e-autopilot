@@ -41,7 +41,7 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 | publishHdrConsumable | update | Item · HDR Consumable (fill Out of Stock Name + Publish) | url?\|itemNumber?\|name?, outOfStockName?=`e2e-oos` | `{ published, outOfStockName }` | url OR itemNumber OR name (a DRAFT/unpublished version) |
 | assembleFullMenuItem | composite | Item · fully-configured Menu item | concept?=`2PRs Fred's`, usage?=`1` | `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed }` | — |
 | publishMenuItem | update | Item · Menu (publish version) | url?\|itemNumber?\|name? | `{ published }` | url OR itemNumber OR name (fully-configured DRAFT) |
-| buildFullMenuItem | composite | Item · full Menu (DRAFT) + published component | concept?, usage?, verify? | `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed, packageSku, componentPublished }` | — |
+| buildFullMenuItem | composite | Item · full DRAFT Menu around an existing component | **component** (number/name, required), concept?, usage?, verify? | `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed, packageSku }` | an existing (published) `component` item |
 
 ---
 
@@ -183,13 +183,14 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 
 ## buildFullMenuItem
 - **File**: `flows/buildFullMenuItem.ts`  ·  **Pages**: `ItemPage` (via the base flows)
-- **Action / Target**: composite · the **full example** — build a DRAFT menu, fully configure it, publish its component
-- **Params**: `concept?`, `usage?`, `verify?` (forwarded to `assembleFullMenuItem`)
-- **Returns**: `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed, packageSku, componentPublished }`
-- **Requires**: — (entry point)
-- **Composes**: `assembleFullMenuItem` (createDraftMenuItem + createDraftHdrConsumable + addComponentToItem + concept + service + nutrition) → `setPackageSku` → `publishHdrConsumable`
-- **Side effects**: persistent — creates 2 items, configures them, **publishes the HDR component**. The **menu item is intentionally left a DRAFT** (publish separately via `publishMenuItem`).
-- **Gotchas**: each run creates fresh drafts (repeatable). Menu publish is deliberately excluded.
+- **Action / Target**: composite · build a fully-configured **DRAFT** menu around an **existing** (published) component
+- **Params**: **`component`** (required — the existing item's NUMBER or NAME to add as the BOM component), `concept?`, `usage?`, `verify?`
+- **Returns**: `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed, packageSku }`
+- **Requires**: a pre-existing (ideally published) `component` item
+- **Composes**: `createDraftMenuItem` → `addComponentToItem({component})` → `setItemConcept` → `setServiceSettingReviewed` → `setNutritionReviewed` → `setPackageSku`
+- **Side effects**: persistent — creates + configures a DRAFT menu. Does **NOT** create/publish the component (must already exist) and does **NOT** publish the menu.
+- **Usage / NL**: drive from "create a menu item, add `<X>` as its component" → `--input '{"component":"<X>"}'`. `component` is searched by Name OR Item Number in the Add-component dialog, so either works.
+- **Gotchas**: to also CREATE the component, use `assembleFullMenuItem` (creates its own HDR) instead; to publish the menu, run `publishMenuItem` after. Each run makes a fresh draft menu (repeatable).
 
 ## searchItem
 - **File**: `flows/searchItem.ts`  ·  **Pages**: `ItemPage` (`flows/pages/ItemPage.ts`)
