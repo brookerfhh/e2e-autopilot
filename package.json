@@ -1,0 +1,17 @@
+{
+  "name": "e2e-autopilot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reusable, composable Playwright data-setup flows for the Cookbook / ItemV2 app, built and driven via Claude Code skills.",
+  "scripts": {
+    "flow": "ts-node -P tsconfig.flows.json flows/_run.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.flows.json",
+    "pw:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^20.19.43",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
