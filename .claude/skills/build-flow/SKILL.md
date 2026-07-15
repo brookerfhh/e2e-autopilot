@@ -41,7 +41,15 @@ type-agnostic) — `searchItem`, `deleteItem`. Never a vague `createItem` when a
 - `SESSION_ID` set (recording auth). `APP_URL` if the app isn't the default Cookbook QA.
 - Run all commands from the repo root.
 
-## Step 0 — Initialize `flows/` if missing, then discover existing flows
+## Step 0 — Read domain knowledge, initialize `flows/` if missing, then discover existing flows
+**Domain knowledge (read FIRST):** if a `cb-knowledge/` folder exists at the repo root, read it before
+anything else — it's the hand-maintained knowledge base for the target app (object types, key fields,
+and one-line process summaries; e.g. what a publishable Menu Item needs). Use it to understand the
+business you're about to record/refactor: name entities and fields the way it does, know the required
+fields and step dependencies up front (so the recording and the refactor are correct), and keep the
+`@flow` header consistent with its terminology. It complements `flows/FLOWS.md` — `cb-knowledge/`
+explains the *business*, `FLOWS.md` catalogs the *executable flows*.
+
 **Bootstrap (first use in a repo):** if `flows/` or `flows/FLOWS.md` doesn't exist, create it — the
 skill is self-contained, the user shouldn't have to scaffold anything by hand:
 - `mkdir -p flows`
@@ -184,6 +192,7 @@ an item"), you don't record — you **compose**:
 ## Output contract
 ```
 build-flow: <name>
+  - domain:     read cb-knowledge/ (object types, fields, process summaries) if present
   - recorded:   flows/.recorded/<flow>.spec.ts (from your session; skipped when composing)
   - flow:       flows/<name>.ts (@flow header: action/target, params <...>, returns <...>, requires <...>)
                 (+ pages/<...>Page.ts reused/added)
