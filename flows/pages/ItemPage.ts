@@ -56,6 +56,14 @@ export class ItemPage {
         await this.page.getByRole("button", {name: "Save"}).click();
     }
 
+    /**
+     * Confirm a create dialog whose submit button is "Next" rather than "Save" (e.g. Ingredient).
+     * Dialog-scoped so it doesn't match a page-level "Next".
+     */
+    async confirmCreateNext(): Promise<void> {
+        await this.page.getByRole("dialog").getByRole("button", {name: "Next", exact: true}).click();
+    }
+
     /** Wait until no Ant Design loading spinner is active (its overlay intercepts clicks). */
     async waitForIdle(): Promise<void> {
         await this.page
@@ -114,7 +122,8 @@ export class ItemPage {
      * Delete the item currently open on its detail page:
      * Actions menu → Delete This Item → confirm "Delete" in the dialog.
      *
-     * The Actions dropdown is race-prone: clicking "Delete This Item" while the menu is still
+     * The Action
+     * s dropdown is race-prone: clicking "Delete This Item" while the menu is still
      * animating sometimes fails to open the confirm dialog. So we retry opening the menu until the
      * dialog appears, then click the dialog-scoped Delete and wait for the dialog to close (commit).
      */
@@ -330,6 +339,23 @@ export class ItemPage {
             if ((await inp.count()) === 0) continue;
             await inp.fill("0");
         }
+    }
+
+    /**
+     * Read the currently-selected value shown in an Ant combobox (by the field's accessible name).
+     * The selected value renders in the `.ant-select-selection-item` inside the `.ant-select` wrapper
+     * (its `title` attr holds the value; text is the fallback). Returns "" if nothing is selected.
+     */
+    async comboSelectedText(label: string | RegExp): Promise<string> {
+        const combo = this.page.getByRole("combobox", {name: label});
+        const sel = combo
+            .locator("xpath=ancestor::div[contains(@class,'ant-select')][1]")
+            .locator(".ant-select-selection-item")
+            .first();
+        if ((await sel.count()) === 0) return "";
+        const title = await sel.getAttribute("title");
+        if (title) return title.trim();
+        return (await sel.innerText().catch(() => "")).trim();
     }
 
     /** Save the currently-open modal dialog and wait for it (and its overlay) to close. */
