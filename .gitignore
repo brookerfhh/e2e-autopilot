@@ -1,6 +1,7 @@
 node_modules/
 .tmp-storage.json
 flows/.recorded/
+flows/.recon*.ts
 
 # Claude Code per-machine local settings (never shared)
 .claude/settings.local.json

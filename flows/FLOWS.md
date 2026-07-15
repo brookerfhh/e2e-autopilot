@@ -29,6 +29,7 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 |------|--------|--------|-------------------|---------|----------|
 | createDraftMenuItem | create | Item · Menu / Food | name?=`e2e-<ts>`, category?=`Menu`, type?=`Food` | `{ itemId, name }` | — |
 | createDraftHdrConsumable | create | Item · HDR Consumable | name?=`e2e-<ts>`, state?=`Thawed`, unit?=`g` | `{ itemId, name }` | — |
+| createIngredientItem | create | Item · Ingredient | name?=`e2e-<ts>`, unit?=`g` | `{ itemId, name, url }` | — |
 | searchItem | search | Item (generic) | query (exact name) | `{ found, itemId, name }` | name |
 | deleteItem | delete | Item (Menu/Food; not HDR) | name (exact) | `{ deleted, name }` | name |
 | createSearchDeleteItem | composite | Item · lifecycle | name?, category?, type? | `{ itemId, name, found, deleted }` | — |
@@ -77,6 +78,16 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 - **Composes into**: `searchItem` can find it by name; **`deleteItem` does NOT apply** (see side effects)
 - **Side effects**: persistent — creates a real item on QA. **No teardown**: HDR Consumable items have no "Delete This Item" action (their Actions menu only offers Recalculate / Generate Frozen / **Dormant Item**), so they cannot be removed the way Menu/Food items can.
 - **Gotchas**: single-button object type (`Create New → HDR Consumable`, not the two-step `Menu → Food`). Two extra required comboboxes — `* State` and `* Unit Used in BOM` — selected via `ItemPage.selectCombo()`, which matches the **visible** option by `title`/text (Ant renders a hidden measurement copy that a plain `getByRole("option")` wrongly grabs). Save is below the modal fold but Playwright auto-scrolls to it. Detail URL path differs from Menu/Food: `/ItemV2/hdr-consumable/detail/<code>?version_id=<guid>`.
+
+## createIngredientItem
+- **File**: `flows/createIngredientItem.ts`  ·  **Pages**: `ItemPage` (`flows/pages/ItemPage.ts`)
+- **Action / Target**: create · Item (Ingredient)
+- **Params**: `name?` (default `e2e-<ts>`), `unit?` (default `g`)
+- **Returns**: `{ itemId: string, name: string, url: string }` — `itemId` is the `version_id` GUID from the post-save URL; `url` is the clickable detail-page link
+- **Requires**: — (entry point)
+- **Composes into**: `searchItem` can find it by name; can be a BOM component via `addComponentToItem`. `deleteItem` applicability is untested for this type (Menu/Food have "Delete This Item"; HDR does not).
+- **Side effects**: persistent — creates a real DRAFT item on QA; no teardown (unique `e2e-*` name avoids collisions)
+- **Gotchas**: single-button object type (`Create New → Ingredient`, not the two-step `Menu → Food`), so it uses `createNewOfType("Ingredient")`. One extra required combobox — `* Unit Used in BOM` — via `ItemPage.selectCombo()` (matches the **visible** option by `title`/text; Ant renders a hidden measurement copy a plain `getByRole("option")` grabs). The create dialog's submit button is **"Next"**, not "Save" — committed via `ItemPage.confirmCreateNext()` (dialog-scoped). "Next" navigates straight to the detail page whose URL carries the `version_id` GUID (`readIdFromUrl`); if the app ever stops navigating there, `itemId` comes back empty.
 
 ## addComponentToItem
 - **File**: `flows/addComponentToItem.ts`  ·  **Pages**: `ItemPage` (`flows/pages/ItemPage.ts`)
