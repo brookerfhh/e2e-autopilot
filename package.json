@@ -22,7 +22,7 @@
   "homepage": "https://github.com/brookerfhh/e2e-autopilot#readme",
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "@types/node": "^26.1.1",
+    "@types/node": "^24.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
