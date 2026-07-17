@@ -52,6 +52,24 @@ export class ItemPage {
             .click();
     }
 
+    /**
+     * Select an option in a required combobox by clicking the actual Ant dropdown OPTION element
+     * (`.ant-select-item-option[title=...]`) scoped to the open dropdown. Use this instead of
+     * selectCombo when the app renders a duplicate text node (e.g. a web-ui-kit preview div) with the
+     * same label — that duplicate can win a plain getByText match and sit BEHIND the real option, so
+     * the click is intercepted (seen on the Packaged item's "Object Sub-Type"). Matching the option's
+     * `title` attr targets the real, clickable option unambiguously.
+     */
+    async selectComboOption(label: string | RegExp, option: string): Promise<void> {
+        await this.page.getByRole("combobox", {name: label}).click();
+        await this.page
+            .locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")
+            .locator(`.ant-select-item-option[title="${option}"]`)
+            .filter({visible: true})
+            .first()
+            .click();
+    }
+
     async save(): Promise<void> {
         await this.page.getByRole("button", {name: "Save"}).click();
     }

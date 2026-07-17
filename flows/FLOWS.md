@@ -30,6 +30,8 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 | createDraftMenuItem | create | Item · Menu / Food | name?=`e2e-<ts>`, category?=`Menu`, type?=`Food` | `{ itemId, name }` | — |
 | createDraftHdrConsumable | create | Item · HDR Consumable | name?=`e2e-<ts>`, state?=`Thawed`, unit?=`g` | `{ itemId, name }` | — |
 | createIngredientItem | create | Item · Ingredient | name?=`e2e-<ts>`, unit?=`g` | `{ itemId, name, url }` | — |
+| createRecipeItem | create | Item · Recipe | name?=`e2e-<ts>`, variant?=`Primary` | `{ itemId, name, url }` | — |
+| createPackageItem | create | Item · Packaged | name?=`e2e-<ts>`, subType?=`Common Stock` | `{ itemId, name, url }` | — |
 | searchItem | search | Item (generic) | query (exact name) | `{ found, itemId, name }` | name |
 | deleteItem | delete | Item (Menu/Food; not HDR) | name (exact) | `{ deleted, name }` | name |
 | createSearchDeleteItem | composite | Item · lifecycle | name?, category?, type? | `{ itemId, name, found, deleted }` | — |
@@ -88,6 +90,26 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 - **Composes into**: `searchItem` can find it by name; can be a BOM component via `addComponentToItem`. `deleteItem` applicability is untested for this type (Menu/Food have "Delete This Item"; HDR does not).
 - **Side effects**: persistent — creates a real DRAFT item on QA; no teardown (unique `e2e-*` name avoids collisions)
 - **Gotchas**: single-button object type (`Create New → Ingredient`, not the two-step `Menu → Food`), so it uses `createNewOfType("Ingredient")`. One extra required combobox — `* Unit Used in BOM` — via `ItemPage.selectCombo()` (matches the **visible** option by `title`/text; Ant renders a hidden measurement copy a plain `getByRole("option")` grabs). The create dialog's submit button is **"Next"**, not "Save" — committed via `ItemPage.confirmCreateNext()` (dialog-scoped). "Next" navigates straight to the detail page whose URL carries the `version_id` GUID (`readIdFromUrl`); if the app ever stops navigating there, `itemId` comes back empty.
+
+## createRecipeItem
+- **File**: `flows/createRecipeItem.ts`  ·  **Pages**: `ItemPage` (`flows/pages/ItemPage.ts`)
+- **Action / Target**: create · Item (Recipe)
+- **Params**: `name?` (default `e2e-<ts>`), `variant?` (default `Primary`)
+- **Returns**: `{ itemId: string, name: string, url: string }` — `itemId` is the `version_id` GUID from the post-save detail URL; `url` is the clickable detail-page link
+- **Requires**: — (entry point)
+- **Composes into**: `searchItem` can find it by name; can be a BOM component via `addComponentToItem`
+- **Side effects**: persistent — creates a real DRAFT item on QA; no teardown (unique `e2e-*` name avoids collisions)
+- **Gotchas**: **two-step** object type — `Create New → Recipe → <variant>` (recorded variant = **"Primary"**) via `createNewOfType("Recipe", variant)`, mirroring `createDraftMenuItem`'s Menu→Food. Unlike Ingredient/HDR, the create form has **no extra required combobox** — just `* Item Name` then the **"Save"** button (not "Next"). Detail URL is `/ItemV2/detail/basic/<number>?version_id=<guid>`; id read via `readIdFromUrl`. Verified 2026-07-17 (created item #80114091 on QA).
+
+## createPackageItem
+- **File**: `flows/createPackageItem.ts`  ·  **Pages**: `ItemPage` (`flows/pages/ItemPage.ts`)
+- **Action / Target**: create · Item (Packaged)
+- **Params**: `name?` (default `e2e-<ts>`), `subType?` (default `Common Stock`)
+- **Returns**: `{ itemId: string, name: string, url: string }` — `itemId` is the `version_id` GUID from the post-save detail URL; `url` is the clickable detail-page link
+- **Requires**: — (entry point)
+- **Composes into**: `searchItem` can find it by name; can be a BOM component via `addComponentToItem`
+- **Side effects**: persistent — creates a real DRAFT item on QA; no teardown (unique `e2e-*` name avoids collisions)
+- **Gotchas**: **single-button** object type — the menu label is **"Packaged"** (not "Package"), so `createNewOfType("Packaged")`, one step (like Ingredient/HDR). One extra required combobox — **`* Object Sub-Type`** (recorded value **"Common Stock"**). Selected via **`ItemPage.selectComboOption`**, NOT `selectCombo`: the app renders a duplicate `web-ui-kit` text node with the same label that wins a plain getByText match and sits *behind* the real Ant option, so the click is intercepted — matching the option's `title` attr targets the real clickable option. Submits with **"Save"** (not "Next"). Detail URL `/ItemV2/detail/basic/<number>?version_id=<guid>`. Verified 2026-07-17 (created item #88047921 on QA).
 
 ## addComponentToItem
 - **File**: `flows/addComponentToItem.ts`  ·  **Pages**: `ItemPage` (`flows/pages/ItemPage.ts`)
