@@ -10,6 +10,8 @@
  * because these endpoints overwrite the whole object.
  */
 import {assertE2EName, get, put} from "./client";
+import {fetchPackageSkuList} from "./packagedSku";
+import {fetchServiceSetting, ServiceSettingLineView} from "./serviceSetting";
 
 interface NamedItem {
     name: string;
@@ -260,17 +262,7 @@ export async function setConcept(versionId: string, concepts: readonly string[],
 // Service Setting  (GET/PUT /ajax/item/version/:id/service-setting)
 // ---------------------------------------------------------------------------------------------
 
-interface ServiceSettingItem {
-    item: {item_version_id: string; object_type: string};
-    manage_inventory: boolean | null;
-}
-interface ServiceSettingGet {
-    review_info: unknown;
-    customizations: {option_id: string; option_value_id: string; items: ServiceSettingItem[] | null}[];
-    bom_line_items: ServiceSettingItem[];
-}
-
-const toBomItem = (it: ServiceSettingItem) => ({item_version_id: it.item.item_version_id, manage_inventory: it.manage_inventory ?? it.item.object_type !== "NON_FOOD"});
+const toBomItem = (it: ServiceSettingLineView) => ({item_version_id: it.item.item_version_id, manage_inventory: it.manage_inventory ?? it.item.object_type !== "NON_FOOD"});
 
 export interface ServiceSettingOptions {
     /** default true */
@@ -279,7 +271,7 @@ export interface ServiceSettingOptions {
 
 export async function setServiceSettingReviewed(versionId: string, options: ServiceSettingOptions = {}): Promise<void> {
     await assertE2EVersion(versionId);
-    const current = await get<ServiceSettingGet>(`/ajax/item/version/${versionId}/service-setting`);
+    const current = await fetchServiceSetting(versionId);
     await put<void>(`/ajax/item/version/${versionId}/service-setting`, {
         reviewed: options.reviewed ?? true,
         customizations: current.customizations.map(c => ({option_id: c.option_id, option_value_id: c.option_value_id, items: (c.items ?? []).map(toBomItem)})),
@@ -290,19 +282,6 @@ export async function setServiceSettingReviewed(versionId: string, options: Serv
 // ---------------------------------------------------------------------------------------------
 // Packaged SKUs  (GET/PUT /ajax/item/version/:id/package-sku/{list,update})
 // ---------------------------------------------------------------------------------------------
-
-interface PackageSkuConfigView {
-    item_number: string | null;
-    consumable_item_number: string | null;
-    service_locations: string[] | null;
-    pan_size: string | null;
-    smallware_tool_first_level: string | null;
-    smallware_tool_second_level: string | null;
-}
-interface PackageSkuView {
-    consumable_item: {item_version_id: string; customization_option_value_id: string | null};
-    package_sku_configs: PackageSkuConfigView[] | null;
-}
 
 export interface PackageSkuOptions {
     /** default ["N/A"] */
@@ -317,7 +296,7 @@ export interface PackageSkuOptions {
 export async function setPackageSku(versionId: string, options: PackageSkuOptions = {}): Promise<number> {
     await assertE2EVersion(versionId);
     const [firstLevel, secondLevel] = options.smallwareTool ?? ["N/A"];
-    const list = await get<{package_sku_list: PackageSkuView[] | null}>(`/ajax/item/version/${versionId}/package-sku/list`);
+    const list = await fetchPackageSkuList(versionId);
     const package_skus = (list.package_sku_list ?? [])
         .filter(sku => sku.package_sku_configs?.length)
         .map(sku => ({

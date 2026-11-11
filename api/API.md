@@ -136,7 +136,47 @@ Facts checked on QA: for an item with a FINAL and a newer DRAFT version, `object
 **WSKU is not verified** (no e2e data; WSKU items are controlled by SCC): implemented from the UI code only.
 `hdr-consumable/version/:id` answers 200 for any type on the server, but it is the `40*` detail endpoint — pick by family, not by "it worked".
 
-Card-level reads (BOM, Service Setting, Packaged SKUs, ...) are not part of this yet; they follow the card logic and come next.
+### Per-card flows: init → get → update
+
+How to use the functions per card. "Init" is the data setup that makes the card non-empty, "Get" reads the card back
+(for assertions), "Update" edits it through the API. Steps that stay in the browser are marked.
+
+| Card | Init | Get | Update |
+|---|---|---|---|
+| Item Information | `createItem(type, name)` (any of the 8 types) | `getItemDetail(ref)` | `updateItemInfo` (V2 items), `updateIngredientInfo` (Ingredient) |
+| Concept | `createMenu` | search row `concepts[]` (`findOneItem({itemNumbers:[n]})`) | `setConcept(versionId, names)` |
+| Components | `buildMenuWithComponent` = `createMenu` + **Add component in the browser** | `getComponentsCard` / `getComponentRows` / `findComponentRow` | browser only (Edit Components) |
+| Service Setting | a Menu with at least one component (`buildMenuWithComponent`) | `getServiceSetting` | `setServiceSettingReviewed` |
+| Packaged SKUs | same: rows appear once a consumable component is in the BOM | `getPackagedSkus` / `getPackagedSkuTableRows` | `setPackageSku` |
+| Nutrition (Menu) | `createMenu` | `getNutrition(ref)` | `setMenuNutritionReviewed` |
+| Nutrition (Recipe / Benchtop) | `createRecipe` / `createBenchtop` | `getNutrition(ref)` | `setNutritionReviewed` |
+| Publish | `buildPublishedMenu` (all of the above, then the check) | `checkForPublish` (unpublished) / search row `missing` (published) | **Publish click in the browser** (`publishMenuItem`) |
+| Versions | a published version | `resolve({itemNumber, version:"latest"})` | `createNewVersion`, `deleteVersion`, `deleteItem` |
+
+### Card reads
+
+Each card read calls the endpoint that card loads and reshapes the answer the way the card does, keeping the columns the card shows.
+
+| Card | Module | Endpoint | Function | Returns | Status |
+|---|---|---|---|---|---|
+| Components (Menu / Recipe detail, `ComponentsV2`) | `api/components.ts` | GET `/ajax/item/version/:id/component-bom/display` | `getComponentsCard(versionId)` | `{showType, objectType, versionStatus, serviceSettingReviewed, totalYield, manualYield, rows}` | verified (Menu FINAL + DRAFT; HDR gives `showType: null`, no rows) |
+| | | | `getComponentRows(versionId)` | top-level `ComponentRow[]` | verified |
+| | | | `findComponentRow(versionId, itemNumber)` | the top-level row or `undefined` | verified |
+
+`ComponentRow` = `{uuid, itemNumber, versionId, name, objectType, objectSubType, itemStatus, version, versionStatus, quantity, unit, required, cost, scrapYield, leadTimeDay, children}`
+(`required` is the card's "Required" column, `manage_inventory` in the API). The response is flat (nodes keyed by `hash`, the root has `hash: null`);
+the card picks `expanded_bom_lines` when `show_type` is `BOM` and `components` when it is `COMPONENT`, then rebuilds the tree exactly like `ComponentsV2/utils/transToTree.tsx`.
+`getBomItemNumbers` in `api/read.ts` is now a thin wrapper over `getComponentRows`. HDR Consumable (`40*`) has its own Production BOM card and is not covered.
+
+| Card | Module | Endpoint | Function | Returns | Status |
+|---|---|---|---|---|---|
+| Service Setting ("Set require for service" modal under Components; its `review_info` is the "Service Setting Reviewed" shown in the Components header) | `api/serviceSetting.ts` | GET `/ajax/item/version/:id/service-setting` | `getServiceSetting(versionId)` | `{reviewed, reviewedBy, reviewedTime, lines, customizations}`; line = `{itemNumber, versionId, name, objectType, objectSubType, quantity, unit, required, noRequiresPackaging}`; customization = `{optionId, optionName, optionValueId, optionValueName, lines}` | verified (Menu FINAL + DRAFT) |
+| Packaged SKUs (`ComponentsV2/PackagedSKU`) | `api/packagedSku.ts` | GET `/ajax/item/version/:id/package-sku/list` | `getPackagedSkus(versionId)` | one entry per consumable component: `{consumable: {itemNumber, versionId, name, objectType, objectSubType, itemStatus, customizationOptionValueName}, configs: [{itemNumber, name, objectType, objectSubType, serviceLocations, smallwareTool: [first, second], panSize}], showWhenEmpty}` | verified (Menu FINAL + DRAFT) |
+| | | | `getPackagedSkuTableRows(versionId)` | the card table rows in UI order (`flatSKUList`): consumable parent row then one `stockable` row per config, or a single `consumableAndStockable` row when a config is the consumable itself; entries without configs only when `showWhenEmpty` | verified |
+
+Both modules also export the raw fetch (`fetchServiceSetting`, `fetchPackageSkuList`); the write side in `updateItem.ts` (`setServiceSettingReviewed`, `setPackageSku`) reads through them.
+
+Other cards are added the same way when a test needs to assert on them.
 
 ## Item Information edits (`api/updateItem.ts`)
 

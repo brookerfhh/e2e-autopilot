@@ -13,6 +13,7 @@
  * Read-only, so unlike the write functions it does NOT require the e2e-auto- name prefix.
  */
 import {ApiError, get, put} from "./client";
+import {getComponentRows} from "./components";
 import {appUrl} from "./env";
 import {searchItems} from "./item";
 
@@ -188,11 +189,9 @@ export function detailUrl(item: {itemNumber: string; versionId: string}): string
     return `${appUrl()}/ItemV2/${page}/${item.itemNumber}?version_id=${item.versionId}`;
 }
 
-/** Item numbers of the top-level BOM lines of a saved version (GET component-bom/display). */
+/** Item numbers of the top-level rows of the Components card (see api/components.ts for the full rows). */
 export async function getBomItemNumbers(versionId: string): Promise<string[]> {
-    const res = await get<{expanded_bom_lines: {hash: string | null; bom_lines: {item_number: string}[] | null}[] | null}>(`/ajax/item/version/${versionId}/component-bom/display`);
-    const root = (res.expanded_bom_lines ?? []).find(n => !n.hash);
-    return (root?.bom_lines ?? []).map(l => l.item_number);
+    return (await getComponentRows(versionId)).map(row => row.itemNumber);
 }
 
 export interface ItemRead<T> {
