@@ -1,46 +1,42 @@
 /**
  * @flow         publishHdrConsumable
- * @action       update                          // create | search | delete | update | verify | composite
+ * @action       update                          // hybrid: API fills the field, browser clicks Publish
  * @target       Item · HDR Consumable (fill required "Out of Stock Name", then Publish)
- * @summary      On an HDR Consumable, fill the required "Out of Stock Name" field, save, then publish
- *               the version.
- * @params       url? | itemNumber? | name?  (one required)  outOfStockName?="e2e-oos"
- * @returns      { published: boolean; outOfStockName: string }
- * @requires     url OR itemNumber OR name
- * @sideEffects  persistent · sets a field and PUBLISHES the item version on QA (hard to undo)
- * @pages        ItemPage
- * @recorded     2026-07-10 vs QA (cookbook.foodtruck-qa.com)
- * @note         "Out of Stock Name" is a required ("missing field") text input in the Item Information
- *               (Edit Item) modal — publishing is blocked until it's filled. Reached via the shared
- *               openCardEditor(/Item Information/); publish = "Publish Version" then confirm "Publish".
+ * @summary      Set the required "Out of Stock Name" through the API, then publish the version in the browser
+ *               (publish is irreversible, so it keeps the real click path) and read the status back.
+ * @params       url? | versionId?  (one required)  outOfStockName?="e2e-oos"
+ * @returns      { published, status?, blockers?, warnings?, outOfStockName }
+ * @requires     url OR versionId of a DRAFT HDR Consumable
+ * @sideEffects  persistent · sets a field and PUBLISHES the version on QA (hard to undo)
+ * @pages        ItemPage (via publishMenuItem)
+ * @note         Verified on QA: an e2e-created HDR Consumable publishes (FINAL) once Out of Stock Name is set.
+ *               It will NOT be a publishable Menu component though — that needs an Active 42* link in SCC
+ *               (see cb-knowledge/流程.md). The result carries blockers if the app refuses.
  */
 import {Page} from "@playwright/test";
-import {ItemPage} from "./pages/ItemPage";
+import {detailUrl, resolve} from "../api/read";
+import {updateItemInfo} from "../api/updateItem";
+import {publishMenuItem} from "./publishMenuItem";
 
 export interface PublishHdrConsumableInput {
     url?: string;
-    itemNumber?: string;
-    name?: string;
+    versionId?: string;
     outOfStockName?: string;
 }
 
 export async function publishHdrConsumable(
     page: Page,
     input: PublishHdrConsumableInput,
-): Promise<{published: boolean; outOfStockName: string}> {
+): Promise<{published: boolean; status?: string; blockers?: string; warnings?: string; outOfStockName: string}> {
     const outOfStockName = input.outOfStockName ?? "e2e-oos";
+    const versionId = input.versionId ?? (input.url ? new URL(input.url).searchParams.get("version_id") : null);
+    if (!versionId) {
+        throw new Error("publishHdrConsumable needs a url with ?version_id=… or a versionId");
+    }
 
-    const item = new ItemPage(page);
-    await item.openItem({url: input.url, itemNumber: input.itemNumber, name: input.name});
-    await page.waitForTimeout(1000);
+    await updateItemInfo(versionId, {outOfStockName});
 
-    // fill the required Out of Stock Name (else publish is blocked), then save the modal
-    await item.openCardEditor(/Item Information/);
-    await item.fillOutOfStockName(outOfStockName);
-    await item.saveDialog();
-
-    // publish the version
-    await item.publishVersion();
-
-    return {published: true, outOfStockName};
+    const url = input.url ?? detailUrl(await resolve({versionId}));
+    const result = await publishMenuItem(page, {url});
+    return {...result, outOfStockName};
 }

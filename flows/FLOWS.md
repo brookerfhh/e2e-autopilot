@@ -41,10 +41,16 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
 | setItemConcept | update | Item · Item Information (Concept multi-select) | url?\|itemNumber?\|name?, concept | `{ set, concept }` | (url OR itemNumber OR name) + concept |
 | setNutritionReviewed | update | Item · Nutrition (Nutrition Reviewed switch) | url?\|itemNumber?\|name?, reviewed?=`true` | `{ reviewed }` | url OR itemNumber OR name |
 | setPackageSku | update | Item · Packaged SKUs (required selects) | url?\|itemNumber?\|name?, serviceLocation?=`N/A`, smallwareTool?=`N/A`, panSize?=`N/A` | `{ serviceLocation, smallwareTool, panSize }` | url OR itemNumber OR name (item must have a packaged SKU) |
-| publishHdrConsumable | update | Item · HDR Consumable (fill Out of Stock Name + Publish) | url?\|itemNumber?\|name?, outOfStockName?=`e2e-oos` | `{ published, outOfStockName }` | url OR itemNumber OR name (a DRAFT/unpublished version) |
+| publishHdrConsumable | update (hybrid: API field + browser publish) | Item · HDR Consumable (fill Out of Stock Name + Publish) | url?\|versionId?, outOfStockName?=`e2e-oos` | `{ published, status?, blockers?, warnings?, outOfStockName }` | url OR versionId of a DRAFT version |
+| setIngredientStockFields | update (API only) | Item · Ingredient Item Information (Stock UOM + Out of Stock Name) | url?\|versionId?, stockUom?=`g`, outOfStockName?=`e2e-oos` | `{ stockUom, outOfStockName }` (read back) | url OR versionId of an Ingredient |
 | assembleFullMenuItem | composite | Item · fully-configured Menu item | concept?=`2PRs Fred's`, usage?=`1` | `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed }` | — |
 | publishMenuItem | update | Item · Menu (publish version) | url?\|itemNumber?\|name? | `{ published }` | url OR itemNumber OR name (fully-configured DRAFT) |
 | buildFullMenuItem | composite | Item · full DRAFT Menu around an existing component | **component** (number/name, required), concept?, usage?, verify? | `{ menu, component, added, conceptSet, serviceReviewed, nutritionReviewed, packageSku }` | an existing (published) `component` item |
+| createNonFoodItem | create | Item · Non-food | name?=`e2e-<ts>`, subType?=`Smallware` | `{ itemId, name, url }` | — |
+| updateNonFoodItem | update | Item · Non-food Item Information (full-page editor) | url?\|itemNumber?\|name?, jiraLink?, reason? | `{ jiraLink, reason }` | a Non-food item (createNonFoodItem) |
+| buildMenuWithComponent | composite (hybrid API + browser) | Item · Menu + existing 40* component | component?=`4001164`, usage?=`1`, name? | `{ menu:{itemNumber,versionId,name,url}, component, added, bomBefore, bomItems }` | an existing 40* component (not created here — see cb-knowledge/流程.md) |
+| buildPublishedMenu | composite (hybrid API + browser) | Item · fully configured, **published** Menu | component?=`4001164`, usage?=`1`, concept?=`2PRs Fred's`, name?, publish?=`true` | `{ menu, component, bomItems, concepts, check:{required,warnings}, published, status?, warnings? }` | an existing published 40* component |
+| createNewVersion | update | Item · Versions (Create New Version modal) | url?\|itemNumber?\|name?, reason?, jiraLink?, copyFromVersion? | `{ versionId, url, reason }` | an item with a published version that shows the button (Recipe/Menu; not HDR Consumable) |
 
 ---
 

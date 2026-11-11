@@ -132,6 +132,10 @@ export class ItemPage {
         if (!query) {
             throw new Error("openItem needs one of: url, itemNumber, name");
         }
+        // search() needs the item grid's Smart Search; a bare page (about:blank) has none.
+        if ((await this.page.getByRole("combobox", {name: "Smart Search"}).count()) === 0) {
+            await this.goto();
+        }
         await this.search(query);
         await this.resultLink(query).click();
     }
@@ -184,7 +188,8 @@ export class ItemPage {
      */
     async addComponent(componentName: string, usage: string): Promise<void> {
         await this.page.getByRole("button", {name: "Add component"}).click();
-        const search = this.page.getByRole("textbox", {name: "Search by Name or Item Number"});
+        // Now a searchbox named "Search by Name or Item Number (minimum 3 characters)" (was a plain textbox).
+        const search = this.page.getByRole("searchbox", {name: /Search by Name or Item Number/});
         await search.click();
         // fill (one shot) then click Search — the box does LIVE search on each keystroke, so typing
         // char-by-char fired a search per character (~N redundant searches + the list re-rendering /
@@ -291,10 +296,27 @@ export class ItemPage {
     /** Publish the current version: click "Publish Version", then confirm "Publish". */
     async publishVersion(): Promise<void> {
         await this.dismissAnyModal();
+        // The detail page keeps loading data after the first paint and re-mounts the dialog if it is opened too
+        // early (the confirm button then detaches mid-click), so let the page settle first.
+        await this.page.getByRole("button", {name: "Publish Version"}).first().waitFor({state: "visible", timeout: 30000});
+        await this.page.waitForLoadState("networkidle", {timeout: 15000}).catch(() => {});
+        await this.page.waitForTimeout(1500);
         await this.page.getByRole("button", {name: "Publish Version"}).click();
-        const confirm = this.page.getByRole("button", {name: "Publish", exact: true});
-        await confirm.waitFor({state: "visible", timeout: 15000});
-        await confirm.click();
+        // Scope to the "Publish Version" dialog (the page header also has a "Publish Version" button) and retry:
+        // right after opening, the dialog can re-render and detach the confirm button mid-click.
+        const dialog = this.page.getByRole("dialog").filter({hasText: "Affect Immediately"});
+        await dialog.waitFor({state: "visible", timeout: 15000});
+        for (let attempt = 1; ; attempt++) {
+            try {
+                await dialog.getByRole("button", {name: "Publish", exact: true}).click({timeout: 8000});
+                return;
+            } catch (error) {
+                if (attempt === 3) {
+                    throw error;
+                }
+                await this.page.waitForTimeout(800);
+            }
+        }
     }
 
     /** Open the "Service Setting" modal (on the item detail page). */
