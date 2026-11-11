@@ -10,14 +10,11 @@
  * The browser opens by DEFAULT (headed). Pass --headless in argv to run without a visible UI.
  */
 import {Browser, BrowserContext, chromium} from "@playwright/test";
+import {appUrl, readSessionId} from "../api/env";
 
-export function appUrl(): string {
-    const url = process.env.APP_URL;
-    if (!url) {
-        throw new Error("APP_URL is not set — export APP_URL=https://your-app.example.com");
-    }
-    return url.replace(/\/+$/, "");
-}
+// The QA-only guard, APP_URL default and session lookup live in api/env.ts (no Playwright needed there);
+// re-exported so existing `from "./_auth"` imports keep working.
+export {appUrl, assertNonProd, DEFAULT_APP_URL, readSessionId, SESSION_FILE} from "../api/env";
 
 /** Headed by DEFAULT (the browser opens). Pass --headless in argv to run without a UI. */
 export function isHeaded(argv: string[] = process.argv): boolean {
@@ -44,7 +41,7 @@ export async function authedContext(browser: Browser, argv: string[] = process.a
         ignoreHTTPSErrors: true,
         viewport: headed ? null : {width: 1280, height: 720},
     });
-    const sessionId = process.env.SESSION_ID;
+    const sessionId = readSessionId();
     if (sessionId) {
         await context.addCookies([
             {

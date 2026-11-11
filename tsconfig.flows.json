@@ -7,5 +7,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["flows/**/*.ts"]
+  "include": ["flows/**/*.ts", "api/**/*.ts"]
 }
