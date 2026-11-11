@@ -39,7 +39,16 @@ export async function addComponentToItem(
 
     await item.openBomEditor();
     await item.addComponent(componentName, usage);
+
+    // Save = check-for-update, then the real PUT .../component-bom. Clicking Save and moving on is NOT enough:
+    // navigating away (e.g. the next flow's goto) aborts the pending check and nothing is saved, while the
+    // editor still shows the unsaved row (a false "added"). So wait for the update response itself.
+    const saved = page.waitForResponse(r => r.request().method() === "PUT" && /\/component-bom$/.test(new URL(r.url()).pathname), {timeout: 60000});
     await item.save();
+    const response = await saved;
+    if (!response.ok()) {
+        throw new Error(`Save components failed: HTTP ${response.status()} ${await response.text().catch(() => "")}`);
+    }
     await item.waitForIdle();
 
     // isVisible() does NOT wait — it returns the instantaneous state. The BOM row can render a beat

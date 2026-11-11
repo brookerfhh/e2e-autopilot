@@ -5,8 +5,9 @@ Playwright. Selectors live in `flows/pages/*.ts` (Page Objects). This file is th
 kept in sync with the `@flow` header at the top of each flow file (the header is the source of
 truth; this file is its index).
 
-Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--headed] [--input '{...}']`
-(needs `APP_URL` + `SESSION_ID` in the env).
+Run any flow: `npm run flow -- <flowName> [--headed] [--trace] [--input '{...}']`
+(QA by default; session id from `SESSION_ID` or `~/.e2e-autopilot/session`). `--trace` records the browser's
+`/ajax/` calls to `flows/.recorded/` and prints the write / check sequence (see `api/API.md`, "UI as oracle").
 
 ## For the agent — read this before building or composing
 
@@ -132,6 +133,7 @@ Run any flow: `npx ts-node -P tsconfig.flows.json flows/_run.ts <flowName> [--he
   - **Select** the result by clicking its **item-number cell** (6+ digit code), NOT the name cell (a link that navigates away). Selecting enables **"Next"**.
   - After **Next**, a **Usage** input (placeholder `enter..`) appears; fill it, then click **"Add"** (`exact` — else it matches "Add component"), then the page-level **Save**.
   - **Verification**: the BOM row renders a beat after Save, so the post-save check uses `waitFor({state:"visible"})`, NOT `isVisible()` (which returns the instantaneous state and does not wait → false-negative `added:false`).
+  - **Save is two requests** (`check-for-update` then `PUT …/component-bom`). The flow now waits for the PUT response before returning; before that, a following `goto` aborted the pending check and the component was silently NOT saved while the editor still showed the row (false-positive `added:true`, found 2026-11-11 by `--trace` + API read-back).
 
 ## assembleMenuItemWithComponent
 - **File**: `flows/assembleMenuItemWithComponent.ts`  ·  **Pages**: `ItemPage` (via the base flows)

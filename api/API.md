@@ -198,6 +198,35 @@ All fields are optional; only the ones given change, the rest is read (GET) and 
 
 `searchItems` is index-backed, like the UI search: a just-created item can take a moment to show up.
 
+## UI as oracle: recorded call sequence and card diff
+
+Frontend-only rules and "check" calls are easy to skip in an API version, and skipping them is how data got corrupted
+before. Two tools keep the API versions honest; the kept UI flows are the reference.
+
+- `npm run flow -- <flow> --trace` records every `/ajax/` call the browser makes during a UI flow
+  (`flows/.recorded/<flow>-<stamp>.trace.json`, gitignored) and prints the write / check sequence.
+- `npm run diff -- <versionIdA> <versionIdB>` snapshots both versions' cards (detail, nutrition, Components,
+  Service Setting, Packaged SKUs, check-for-publish), replaces the item's own number / version id / name with
+  placeholders, drops volatile keys (ids, hashes, times, who) and prints every remaining difference.
+
+### Menu up to publish — recorded 2026-11-11 on QA
+
+UI-built Menu `80146491` vs API-built `80146481` (`buildPublishedMenu` with `publish:false`): **0 differences**.
+
+| Step | Frontend-only rules (before any request) | Check call | Write call | API version |
+|---|---|---|---|---|
+| Create Menu | form: name required | — | `POST /ajax/v2/item/recipe` | `createMenu` — same |
+| Add component (Edit Components) | body built by `getComponents` / `getBOMLines` / `getUncreatedItems` (pack qty, units…) | `PUT …/component-bom/check-for-update` (warnings → confirm dialogs) | `PUT …/component-bom` | **browser only** (`addComponentToItem`) |
+| Concept (Edit Item modal) | form validation | — | `PUT /ajax/v2/item/version/:id/recipe` (whole object, `user_add_concept_ids`) | `setConcept` — same |
+| Service Setting | MENU: each customization option value with food items needs one Required; HDR_RECIPE: BOM needs one food Required | `PUT …/service-setting/update-check` (same body) | `PUT …/service-setting` | `setServiceSettingReviewed` — rules + check + write |
+| Nutrition (Edit Nutrition page) | Nutrition Reviewed must be on to save at all; nutrients must not be blank | `PUT …/recipe/check-nutrition-all-reviewed` → "Some components' nutrition status is not approved… Continue?" | `PUT …/customization/nutrition` | `setMenuNutritionReviewed` — check + write, `allowUnreviewedComponents` (default true) answers the confirm |
+| Packaged SKUs | the three selects are required | — | `PUT …/package-sku/update` | `setPackageSku` — same |
+| Publish | — | `PUT …/check-for-publish` → "Unable to Publish" / "Incomplete info" | publish | **browser only** (`publishMenuItem`) |
+
+Lesson from the recording: the old `addComponentToItem` reported `added:true` without waiting for the save; the next
+flow's navigation aborted the pending `check-for-update` and nothing was saved. It now waits for the `PUT …/component-bom`
+response. "The UI flow is the oracle" only holds when the UI flow itself is verified by a read-back.
+
 ## Flows that now use the API for their data steps
 
 | Flow | How |

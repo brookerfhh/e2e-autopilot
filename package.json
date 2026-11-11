@@ -8,6 +8,7 @@
     "flow": "ts-node -P tsconfig.flows.json flows/_run.ts",
     "smoke:create": "ts-node -P tsconfig.flows.json api/createItemCli.ts",
     "smoke:update": "ts-node -P tsconfig.flows.json api/updateItemCli.ts",
+    "diff": "ts-node -P tsconfig.flows.json api/snapshotCli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.flows.json",
     "pw:install": "playwright install chromium"
   },

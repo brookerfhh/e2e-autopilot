@@ -11,6 +11,7 @@
  */
 import {assertE2EName, get, put} from "./client";
 import {fetchPackageSkuList} from "./packagedSku";
+import {resolve} from "./read";
 import {fetchServiceSetting, ServiceSettingLineView} from "./serviceSetting";
 
 interface NamedItem {
@@ -269,14 +270,39 @@ export interface ServiceSettingOptions {
     readonly reviewed?: boolean;
 }
 
+const isFood = (it: {item: {object_type: string}}) => it.item.object_type !== "NON_FOOD";
+
+/**
+ * Same sequence as the "Set require for service" modal (ComponentsV2/SetRequireForService/index.tsx):
+ *   frontend rules: MENU — every customization option value with food items needs one Required;
+ *                   HDR_RECIPE — the BOM needs at least one food item Required
+ *   PUT service-setting/update-check   (server-side check, same body)
+ *   PUT service-setting
+ */
 export async function setServiceSettingReviewed(versionId: string, options: ServiceSettingOptions = {}): Promise<void> {
     await assertE2EVersion(versionId);
-    const current = await fetchServiceSetting(versionId);
-    await put<void>(`/ajax/item/version/${versionId}/service-setting`, {
+    const [{objectType}, current] = await Promise.all([resolve({versionId}), fetchServiceSetting(versionId)]);
+    const body = {
         reviewed: options.reviewed ?? true,
         customizations: current.customizations.map(c => ({option_id: c.option_id, option_value_id: c.option_value_id, items: (c.items ?? []).map(toBomItem)})),
         bom_line_items: current.bom_line_items.map(toBomItem),
-    });
+    };
+
+    if (objectType === "MENU") {
+        const failing = current.customizations.filter(c => {
+            const food = (c.items ?? []).filter(isFood);
+            return food.length && food.every(it => !toBomItem(it).manage_inventory);
+        });
+        if (failing.length) {
+            throw new Error(`Unable to save. Please set at least one food component as required for service in the following customization options: ${failing.map(c => c.option_value_name).join(", ")}.`);
+        }
+    }
+    if (objectType === "HDR_RECIPE" && current.bom_line_items.filter(isFood).every(it => !toBomItem(it).manage_inventory)) {
+        throw new Error("Unable to save. Please set at least one food component as required for service.");
+    }
+
+    await put<void>(`/ajax/item/version/${versionId}/service-setting/update-check`, body);
+    await put<void>(`/ajax/item/version/${versionId}/service-setting`, body);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -333,16 +359,31 @@ interface MenuNutritionGet {
 }
 
 export interface MenuNutritionOptions {
-    /** default true */
-    readonly reviewed?: boolean;
     /** nutrient overrides; others use the calculated (recommended) value, else 0 */
     readonly nutrients?: Partial<NutritionFact>;
     /** default 1 (UI default: servings per dish 1) */
     readonly servingsPerDish?: number;
     readonly notes?: string | null;
+    /**
+     * default true. The UI asks "Some components' nutrition status is not approved. Are you sure you want to
+     * continue?" when a component is not reviewed; true answers Continue, false answers Cancel (throws).
+     */
+    readonly allowUnreviewedComponents?: boolean;
 }
 
-export async function setMenuNutritionReviewed(versionId: string, options: MenuNutritionOptions = {}): Promise<void> {
+export interface MenuNutritionResult {
+    /** result of the UI's pre-save check (recipe/check-nutrition-all-reviewed) */
+    readonly componentsAllReviewed: boolean;
+}
+
+/**
+ * Same sequence as the Edit Nutrition page (editNutrition/components/ModalAction.tsx) for a Menu:
+ *   frontend rules: the Nutrition Reviewed switch must be on to save at all; nutrients must not be blank
+ *   PUT recipe/check-nutrition-all-reviewed  -> confirm when some component is unreviewed
+ *   PUT customization/nutrition
+ * The reviewed flag is always true: the UI refuses to save with it off ("Please set the nutrition reviewed to 'Yes' first").
+ */
+export async function setMenuNutritionReviewed(versionId: string, options: MenuNutritionOptions = {}): Promise<MenuNutritionResult> {
     await assertE2EVersion(versionId);
     const path = `/ajax/item/version/${versionId}/customization/nutrition`;
     const current = await get<MenuNutritionGet>(path);
@@ -353,6 +394,13 @@ export async function setMenuNutritionReviewed(versionId: string, options: MenuN
     for (const key of NUTRIENT_KEYS) {
         nutrition_fact[key] = options.nutrients?.[key] ?? saved?.[key] ?? current.recommend_nutrition_fact?.[key] ?? 0;
     }
+
+    const check = await put<{recipe_or_ingredient_all_reviewed: boolean}>(`/ajax/v2/item/version/${versionId}/recipe/check-nutrition-all-reviewed`, null);
+    const componentsAllReviewed = check.recipe_or_ingredient_all_reviewed;
+    if (!componentsAllReviewed && options.allowUnreviewedComponents === false) {
+        throw new Error("Some components' nutrition status is not approved (UI confirm answered Cancel)");
+    }
+
     await put<void>(path, {
         serving_size: +(1 / servingsPerDish).toFixed(3),
         serving_size_unit: current.customization_nutrition?.serving_size_unit ?? current.yield_unit,
@@ -360,11 +408,12 @@ export async function setMenuNutritionReviewed(versionId: string, options: MenuN
         customization_config: {discrete_unit: false, servings_size_quantity: "1", servings_size_unit: "Dish", servings_per_dish: servingsPerDish},
         dietary_flags: (current.customization_nutrition?.dietary_flags ?? []).filter(f => f !== "GLUTEN_FREE"),
         recipe_items: (current.recipe_items ?? []).map(it => ({uuid: it.uuid, item_version_id: it.item_version_id, nutrients_contribution_percent: it.contribution_percent ?? 1})),
-        nutrition_reviewed: options.reviewed ?? true,
+        nutrition_reviewed: true,
         nutrition_notes: options.notes === undefined ? (current.customization_nutrition?.nutrition_notes ?? null) : options.notes,
         sugar_warning: null,
         hide_gf_and_gfo_from_wonder_app: null,
     });
+    return {componentsAllReviewed};
 }
 
 // ---------------------------------------------------------------------------------------------

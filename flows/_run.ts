@@ -1,12 +1,14 @@
 /**
  * Generic flow runner. Runs any flows/<name>.ts against the target app.
  *
- *   npx ts-node -P flows/tsconfig.json flows/_run.ts <flowName> [--headed] [--input '{"k":"v"}']
+ *   npx ts-node -P flows/tsconfig.json flows/_run.ts <flowName> [--headed] [--trace] [--input '{"k":"v"}']
  *
  * Convention: flows/<name>.ts exports `<name>(page, input)` (or a default function).
- * Prints `RESULT: <json>` on success.
+ * Prints `RESULT: <json>` on success. With --trace, also records every /ajax/ call the browser made
+ * (see _trace.ts) and prints the write / check sequence.
  */
 import {authedContext, launchBrowser} from "./_auth";
+import {attachTrace, formatTrace} from "./_trace";
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -29,8 +31,16 @@ async function main(): Promise<void> {
         // authedContext may throw (e.g. APP_URL unset) — keep it inside so the browser still closes.
         const context = await authedContext(browser);
         const page = await context.newPage();
-        const result = await fn(page, input);
-        console.log("RESULT:", JSON.stringify(result ?? null));
+        const trace = args.includes("--trace") ? attachTrace(page) : null;
+        try {
+            const result = await fn(page, input);
+            console.log("RESULT:", JSON.stringify(result ?? null));
+        } finally {
+            if (trace) {
+                console.log(formatTrace(trace));
+                console.log("TRACE_FILE:", trace.save(name));
+            }
+        }
     } finally {
         await browser.close();
     }
